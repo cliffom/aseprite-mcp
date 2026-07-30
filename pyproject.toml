@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aseprite-mcp"
+version = "0.6.0"
+description = "MCP server that lets an AI assistant draw in Aseprite over a local WebSocket bridge"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "giangdv" }]
+keywords = ["mcp", "aseprite", "pixel-art", "claude"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Graphics :: Editors",
+]
+
+dependencies = [
+    # Upper bound is deliberate: mcp 2.0 removed Server.list_tools, so an
+    # unbounded install fails at import. Migrating to the 2.x API is tracked
+    # separately.
+    "mcp>=1.0,<2",
+    # Lower bound is 13 because that is the first release shipping
+    # websockets.asyncio.server, which the server now imports directly.
+    # The upper bound no longer guards the removal of
+    # websockets.server.WebSocketServerProtocol — nothing references it — so it
+    # widens by one major. It stays present because an unbounded dependency is
+    # what let that deprecation reach a fresh install in the first place.
+    "websockets>=13,<17",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+aseprite-mcp = "aseprite_mcp.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/giangdvdotdev/aseprite-mcp"
+Issues = "https://github.com/giangdvdotdev/aseprite-mcp/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aseprite_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "strict"

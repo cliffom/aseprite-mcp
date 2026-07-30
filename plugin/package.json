@@ -1,0 +1,9 @@
+{
+  "name": "aseprite-mcp",
+  "displayName": "Aseprite MCP Bridge",
+  "version": "0.6.0",
+  "description": "WebSocket bridge for Claude AI live editing",
+  "contributes": {
+    "scripts": [{"title": "MCP Bridge", "path": "main.lua"}]
+  }
+}

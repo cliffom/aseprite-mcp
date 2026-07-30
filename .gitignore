@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# Build artefacts
+build/
+dist/
+*.egg-info/
+.DS_Store
