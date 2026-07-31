@@ -6,6 +6,11 @@ canvas.
 
 ## Gallery
 
+<p align="center">
+  <img src="assets/gallery/demo.gif" width="600" alt="Live demo: Claude Code driving Aseprite over the MCP bridge, drawing a pixel-art portrait from a reference photo"><br>
+  <sub>Live session — Claude Code drawing a pixel-art portrait in Aseprite</sub>
+</p>
+
 <table align="center">
   <tr>
     <td align="center" width="200">
@@ -86,9 +91,9 @@ python scripts/install_plugin.py    # build + install the plugin, then restart A
 
 Open Aseprite and ask:
 
-- *"Draw me a 32×32 pixel-art fox."*
-- *"Make it blink — duplicate the frame, close the eyes, 120ms each."*
-- *"Export the spritesheet to ~/art/fox-sheet.png."*
+- _"Draw me a 32×32 pixel-art fox."_
+- _"Make it blink — duplicate the frame, close the eyes, 120ms each."_
+- _"Export the spritesheet to ~/art/fox-sheet.png."_
 
 Thirty tools, all acting on Aseprite's active sprite: drawing (pixels, batches,
 lines, rects, ellipses, flood fill, erase), reading back (canvas image, pixels,
