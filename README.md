@@ -4,13 +4,34 @@ An [MCP](https://modelcontextprotocol.io) server that lets an AI assistant draw
 in [Aseprite](https://www.aseprite.org/) — live, in the real editor, on your
 canvas.
 
-<p align="center">
-  <img src="output/clawd.png" width="192" alt="A 32x32 pixel-art fox drawn by Claude through aseprite-mcp" style="image-rendering: pixelated">
-</p>
+## Gallery
 
-<p align="center">
-  <em>32×32, drawn by Claude in four tool calls.</em>
-</p>
+<table align="center">
+  <tr>
+    <td align="center" width="200">
+      <img src="assets/gallery/dog-walk.gif" width="128" alt="A pixel-art dog walk cycle" style="image-rendering: pixelated"><br>
+      <em>Dog walk cycle</em><br>
+      Opus 5 · Claude Code<br>
+      <sub>Prompt: <em>"Make a dog walking sprite — a walk-cycle animation."</em></sub>
+    </td>
+    <td align="center" width="220">
+      <div style="white-space: nowrap">
+        <img src="assets/gallery/avatar-reference.jpg" width="90" alt="Reference photo used for the avatar">
+        →
+        <img src="assets/gallery/avatar-pixel.png" width="90" alt="A pixel-art avatar portrait, drawn from the reference photo" style="image-rendering: pixelated">
+      </div>
+      <em>Avatar portrait (from reference photo)</em><br>
+      Opus 5 · Claude Code<br>
+      <sub>Prompt: <em>"Here's a photo of me — can you draw a pixel-art avatar using it as reference?"</em></sub>
+    </td>
+    <td align="center" width="200">
+      <img src="assets/gallery/gold-duck.png" width="128" alt="A pixel-art rubber duck" style="image-rendering: pixelated"><br>
+      <em>Rubber duck</em><br>
+      gemma-4-26B-A4B-it-UD-Q4_K_XL · Pi Agent (local, RTX 3060 12GB)<br>
+      <sub>Prompt: <em>"Draw a gold rubber duck."</em></sub>
+    </td>
+  </tr>
+</table>
 
 ## Install
 
