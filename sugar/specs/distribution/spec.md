@@ -291,26 +291,26 @@ open sprite, matching how the existing frame-targeting section explains
 
 ### Requirement: Project documentation reflects the new tool surface
 
-`CLAUDE.md` MUST record the new tool count and the millisecond/seconds
+`AGENTS.md` MUST record the new tool count and the millisecond/seconds
 conversion boundary, so the architecture notes describe the shipped contract
 rather than Aseprite's native units.
 
 #### Scenario: Tool count and duration unit are current
 
-- **WHEN** a contributor reads the design decisions in `CLAUDE.md`
+- **WHEN** a contributor reads the design decisions in `AGENTS.md`
 - **THEN** the tool count reflects twenty-four tools and a note explains that
   frame duration crosses the bridge in milliseconds, converted to Aseprite's
   native seconds internally
 
 ### Requirement: Project documentation reflects the new tool surface and the export_png fix
 
-`CLAUDE.md` MUST record the new tool count and the corrected reasoning behind
+`AGENTS.md` MUST record the new tool count and the corrected reasoning behind
 `export_png`'s implementation, replacing any note that still describes
 `saveCopyAs` as the export mechanism.
 
 #### Scenario: Tool count and export mechanism are current
 
-- **WHEN** a contributor reads the design decisions in `CLAUDE.md`
+- **WHEN** a contributor reads the design decisions in `AGENTS.md`
 - **THEN** the tool count reflects thirty tools, and the `export_png` note
   describes `Image(sprite, frame):saveAs`, matching what `get_canvas_image`
   already documented, rather than `saveCopyAs`
