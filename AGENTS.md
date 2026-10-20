@@ -9,6 +9,7 @@ Two processes, one socket between them.
 ## Architecture
 
 ```
+Makefile                      → dev tasks; `make` lists them, Python runs in Poetry's ./.venv
 src/aseprite_mcp/server.py    → WebSocket server + MCP stdio server on one event loop
 src/aseprite_mcp/__main__.py  → console script; resolves the port before asyncio.run
 plugin/main.lua               → the Aseprite-side WebSocket client (only source of truth)
@@ -484,11 +485,16 @@ copy is how the two versions drifted apart the first time. Always edit
 ## Build and install
 
 ```bash
-pip install -e ".[dev]"
-
-python scripts/build_extension.py   # → dist/aseprite-mcp.aseprite-extension
-python scripts/install_plugin.py    # build + install into Aseprite's extensions dir
+make install          # Poetry venv in ./.venv with dev extras
+make build            # → dist/aseprite-mcp.aseprite-extension
+make install-plugin   # build + install into Aseprite's extensions dir
 ```
+
+Every Python target runs through `poetry run` in a project-local `.venv` —
+the Makefile exports `POETRY_VIRTUALENVS_IN_PROJECT=true` so the global
+interpreter and Poetry's shared cache are never touched. Needs Poetry 2.x,
+which reads the PEP 621 `[project]` table as-is; do not add `[tool.poetry]`
+sections to `pyproject.toml`. `make` on its own lists every target.
 
 Restart Aseprite after either — extensions load only at startup.
 `ASEPRITE_EXTENSIONS_DIR` overrides the install destination.
@@ -496,7 +502,7 @@ Restart Aseprite after either — extensions load only at startup.
 ## Running
 
 ```bash
-aseprite-mcp                 # or: python -m aseprite_mcp
+make run                     # or, inside the venv: aseprite-mcp / python -m aseprite_mcp
 ```
 
 It logs to stderr and then waits on stdin. Started by hand it exits as soon as
@@ -519,9 +525,12 @@ reconnects on its own if the server restarts.
 Both suites are fast and neither needs Aseprite running. Both must pass.
 
 ```bash
-pytest                    # server: dispatch, timeout, disconnect, port, contracts
-lua tests/lua/run.lua     # plugin: JSON decode, parse_pixels, color modes, shapes, durations
+make test        # both suites
+make test-py     # server: dispatch, timeout, disconnect, port, contracts
+make test-lua    # plugin: JSON decode, parse_pixels, color modes, shapes, durations
 ```
+
+Underneath they are `poetry run pytest` and `lua tests/lua/run.lua`.
 
 The Lua runner needs a **Lua 5.4** interpreter on `PATH` (`winget install
 DEVCOM.Lua` / `brew install lua` / `apt install lua5.4`). No LuaRocks, no
@@ -550,8 +559,8 @@ name → function. `harness.lua` gives you `eq`, `is_true`, `throws`, and
 
 ## Versions
 
-Three strings have to agree and nothing enforces it automatically. Bump
-together:
+Three strings have to agree. `make check-versions` compares them and exits
+non-zero on a mismatch, but nothing runs it for you. Bump together:
 
 - `version` in `pyproject.toml`
 - `version` in `plugin/package.json`
@@ -573,8 +582,7 @@ being executed, mark each checkbox `[x]` as its task lands.
 ## Git flow
 
 1. **`main` is the only long-lived branch.** Always in a runnable state (green
-   `pytest && lua tests/lua/run.lua`). No direct pushes — every change goes
-   through a PR.
+   `make test`). No direct pushes — every change goes through a PR.
 2. **Branch names:** `<prefix>/<scope>/<slug>` with `<prefix>` one of `feat/`,
    `fix/`, `refactor/`, `docs/`, `test/`, `chore/`. `<scope>` matches the part
    of the tree the change lands in — `server` (`src/aseprite_mcp/`), `plugin`
@@ -592,9 +600,9 @@ being executed, mark each checkbox `[x]` as its task lands.
    Keeps topic branches linear and PR diffs clean.
 5. **Squash-merge only** via GitHub PR. The squash commit follows the
    Conventional Commit format. Delete the branch after merge.
-6. **Before opening a PR that adds or changes a tool,** both suites in
-   [Tests](#tests) must pass locally, and if the change bumps a version, all
-   three strings in [Versions](#versions) must agree.
+6. **Before opening a PR that adds or changes a tool,** `make test` must
+   pass locally, and if the change bumps a version, `make check-versions` must
+   too.
 
 ## Debugging
 

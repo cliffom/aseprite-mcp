@@ -83,9 +83,13 @@ its own afterwards.
 ```bash
 git clone https://github.com/giangdvdotdev/aseprite-mcp.git
 cd aseprite-mcp
-pip install -e ".[dev]"
-python scripts/install_plugin.py    # build + install the plugin, then restart Aseprite
+make install           # Poetry venv in ./.venv with dev extras
+make install-plugin    # build + install the plugin, then restart Aseprite
 ```
+
+Needs [Poetry](https://python-poetry.org/) 2.x. Everything Python runs inside the
+project's `.venv`; nothing touches your global interpreter. Run `make` on its
+own to list every target.
 
 ## Usage
 
@@ -139,9 +143,14 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Both test suites are fast and neither
 needs Aseprite running:
 
 ```bash
-pytest                    # server
-lua tests/lua/run.lua     # plugin
+make test                 # both suites
+make test-py              # server (pytest)
+make test-lua             # plugin (needs Lua 5.4 on PATH)
 ```
+
+`make check-versions` confirms the three version strings agree before a release;
+`make clean` removes build artefacts, and `make distclean` removes the `.venv`
+too.
 
 ## License
 
