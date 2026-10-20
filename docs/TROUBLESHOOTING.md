@@ -16,11 +16,11 @@ In order of likelihood:
 3. **The two ends are on different ports.** Nothing negotiates the port, so a
    bridge on 9876 and a plugin on 9877 will never meet, and neither logs an
    error about it. Check **View → Console** in Aseprite for the
-   `[MCP] Connecting to ws://127.0.0.1:<port> …` line and compare it with the
+   `[MCP] Connecting to ws://127.0.0.1:<port> ...` line and compare it with the
    server's `Starting WebSocket server on ws://127.0.0.1:<port>`. See
    [Setting the port](#setting-the-port) — remember the plugin only sees the
    variable if it was set **before** Aseprite started.
-4. **The plugin failed to load.** Same console: `[MCP] Connecting to …` with no
+4. **The plugin failed to load.** Same console: `[MCP] Connecting to ...` with no
    `[MCP] Connected.` means it could not reach the server at all.
 
 ### "Timeout: Aseprite did not respond within 10s"
