@@ -4,12 +4,14 @@ Guidance for coding agents (Codex, Claude Code, Cursor, etc.) and humans
 working in this repo.
 
 MCP server that drives a live Aseprite instance over a local WebSocket bridge.
-Two processes, one socket between them.
+Per-session stdio frontends share one detached background bridge and editor socket.
 
 ## Architecture
 
 ```
-src/aseprite_mcp/server.py    → WebSocket server + MCP stdio server on one event loop
+Makefile                      → dev tasks; `make` lists them, Python runs in Poetry's ./.venv
+src/aseprite_mcp/server.py    → tool registry, editor dispatch, canvas files
+src/aseprite_mcp/transport.py → stdio frontends, shared bridge, discovery and lifecycle
 src/aseprite_mcp/__main__.py  → console script; resolves the port before asyncio.run
 plugin/main.lua               → the Aseprite-side WebSocket client (only source of truth)
 plugin/package.json           → extension manifest Aseprite reads
@@ -24,9 +26,10 @@ sugar/                        → spec-driven change dirs (see "Spec-driven work
 Data flow for one tool call:
 
 ```
-client ──MCP stdio──▶ server.py ──JSON/ws──▶ main.lua ──▶ app.useTool / img:drawPixel
-                          ▲                      │
-                          └──── {id, ok, result} ┘
+client ──MCP stdio──▶ frontend ──ws /clients──▶ bridge ──JSON/ws /──▶ main.lua
+                                              server.py               │
+                                                  ▲                   │
+                                                  └── {id,ok,result} ─┘
 ```
 
 `server.py` holds at most one Aseprite connection (`aseprite_ws`) and a
@@ -466,7 +469,19 @@ unexpected faults through it.
 ### One Aseprite at a time
 
 A second connection is closed with code 1008. The first keeps the bridge.
-On disconnect, every pending future is cancelled so no caller hangs.
+On editor disconnect, pending calls resolve as errors so no caller hangs.
+
+Multiple stdio sessions share the bridge automatically. `transport.py` owns
+discovery, detached startup, a versioned frontend protocol, and a fair lock
+serializing calls. Editor timeouts begin after acquiring that lock. Sessions
+share active editor state; multi-call sequences are not atomic.
+
+The bridge outlives its first frontend and exits after 60 seconds without
+frontends, once dispatched calls finish. Cancel only queued work on frontend
+disconnect; dispatched calls must finish, especially canvas-file cleanup. Never
+replay a call after an uncertain disconnect. The plugin endpoint and wire
+protocol remain unchanged. Bump `BRIDGE_PROTOCOL` when frontend wire or tool
+semantics change incompatibly.
 
 ### Dependency bounds are deliberate
 
@@ -484,11 +499,16 @@ copy is how the two versions drifted apart the first time. Always edit
 ## Build and install
 
 ```bash
-pip install -e ".[dev]"
-
-python scripts/build_extension.py   # → dist/aseprite-mcp.aseprite-extension
-python scripts/install_plugin.py    # build + install into Aseprite's extensions dir
+make install          # Poetry venv in ./.venv with dev extras
+make build            # → dist/aseprite-mcp.aseprite-extension
+make install-plugin   # build + install into Aseprite's extensions dir
 ```
+
+Every Python target runs through `poetry run` in a project-local `.venv` —
+the Makefile exports `POETRY_VIRTUALENVS_IN_PROJECT=true` so the global
+interpreter and Poetry's shared cache are never touched. Needs Poetry 2.x,
+which reads the PEP 621 `[project]` table as-is; do not add `[tool.poetry]`
+sections to `pyproject.toml`. `make` on its own lists every target.
 
 Restart Aseprite after either — extensions load only at startup.
 `ASEPRITE_EXTENSIONS_DIR` overrides the install destination.
@@ -496,11 +516,12 @@ Restart Aseprite after either — extensions load only at startup.
 ## Running
 
 ```bash
-aseprite-mcp                 # or: python -m aseprite_mcp
+make run                     # or, inside the venv: aseprite-mcp / python -m aseprite_mcp
 ```
 
-It logs to stderr and then waits on stdin. Started by hand it exits as soon as
-stdin closes — that is correct; it speaks MCP over stdio and belongs under an
+The frontend logs to stderr and then waits on stdin. The launching frontend
+reports a temporary log path for the background bridge, whose logs go there.
+Started by hand the frontend exits as soon as stdin closes — that is correct; it speaks MCP over stdio and belongs under an
 MCP client.
 
 ```bash
@@ -519,9 +540,12 @@ reconnects on its own if the server restarts.
 Both suites are fast and neither needs Aseprite running. Both must pass.
 
 ```bash
-pytest                    # server: dispatch, timeout, disconnect, port, contracts
-lua tests/lua/run.lua     # plugin: JSON decode, parse_pixels, color modes, shapes, durations
+make test        # both suites
+make test-py     # server: dispatch, timeout, disconnect, port, contracts
+make test-lua    # plugin: JSON decode, parse_pixels, color modes, shapes, durations
 ```
+
+Underneath they are `poetry run pytest` and `lua tests/lua/run.lua`.
 
 The Lua runner needs a **Lua 5.4** interpreter on `PATH` (`winget install
 DEVCOM.Lua` / `brew install lua` / `apt install lua5.4`). No LuaRocks, no
@@ -550,8 +574,8 @@ name → function. `harness.lua` gives you `eq`, `is_true`, `throws`, and
 
 ## Versions
 
-Three strings have to agree and nothing enforces it automatically. Bump
-together:
+Three strings have to agree. `make check-versions` compares them and exits
+non-zero on a mismatch, but nothing runs it for you. Bump together:
 
 - `version` in `pyproject.toml`
 - `version` in `plugin/package.json`
@@ -572,37 +596,47 @@ being executed, mark each checkbox `[x]` as its task lands.
 
 ## Git flow
 
-1. **`main` is the only long-lived branch.** Always in a runnable state (green
-   `pytest && lua tests/lua/run.lua`). No direct pushes — every change goes
-   through a PR.
-2. **Branch names:** `<prefix>/<scope>/<slug>` with `<prefix>` one of `feat/`,
+1. **Two long-lived branches: `main` and `development`.** `main` is what has
+   been released; `development` is where work lands between releases. Both are
+   always in a runnable state (green `make test`). No direct pushes to either —
+   every change goes through a PR.
+2. **Topic branches are cut from `development` and PR'd back into it.**
+   `git switch development && git pull && git switch -c <branch>`. Never open a
+   topic PR against `main`.
+3. **Branch names:** `<prefix>/<scope>/<slug>` with `<prefix>` one of `feat/`,
    `fix/`, `refactor/`, `docs/`, `test/`, `chore/`. `<scope>` matches the part
    of the tree the change lands in — `server` (`src/aseprite_mcp/`), `plugin`
    (`plugin/`), `scripts`, `docs`, `tests`, or `sugar` where applicable.
    Examples: `feat/plugin/add-flood-fill`, `fix/server/port-resolve`,
    `docs/docs/troubleshooting-reconnect`.
-3. **Commit and PR title convention:** Conventional Commits with scope —
+4. **Commit and PR title convention:** Conventional Commits with scope —
    `<type>(<scope>): <subject>`. Types match branch prefixes (`feat`, `fix`,
    `refactor`, `docs`, `test`, `chore`). Scope is `server`, `plugin`, `scripts`,
    `docs`, or `tests`. A change spanning both halves of a tool (see "Adding a
    tool means editing **both** files" above) uses both, comma-joined:
    `feat(server,plugin): add flood_fill tool`.
-4. **Update a topic branch against `main` by rebase, never merge.**
-   `git rebase main`; push with `--force-with-lease` (never plain `--force`).
-   Keeps topic branches linear and PR diffs clean.
-5. **Squash-merge only** via GitHub PR. The squash commit follows the
+5. **Update a topic branch against `development` by rebase, never merge.**
+   `git rebase development`; push with `--force-with-lease` (never plain
+   `--force`). Keeps topic branches linear and PR diffs clean.
+6. **Topic PRs squash-merge into `development`.** The squash commit follows the
    Conventional Commit format. Delete the branch after merge.
-6. **Before opening a PR that adds or changes a tool,** both suites in
-   [Tests](#tests) must pass locally, and if the change bumps a version, all
-   three strings in [Versions](#versions) must agree.
+7. **Releases are a PR from `development` into `main`, merged with a merge
+   commit — not a squash.** Squashing would give `main` a commit `development`
+   does not have, and every later release PR would conflict over changes both
+   branches already contain. Never rebase or force-push either long-lived
+   branch.
+8. **Before opening a PR that adds or changes a tool,** `make test` must
+   pass locally, and if the change bumps a version, `make check-versions` must
+   too. A release PR into `main` must pass both regardless.
 
 ## Debugging
 
 **Aseprite side:** **View → Console**. The plugin prints
-`[MCP] Connecting to ws://127.0.0.1:<port> …`, then `[MCP] Connected.`, then
+`[MCP] Connecting to ws://127.0.0.1:<port> ...`, then `[MCP] Connected.`, then
 `[MCP] RX: <first 200 chars>` per command.
 
-**Server side:** stderr. A healthy connection logs two lines:
+**Server side:** the temporary file reported as `Shared bridge log: <path>` on
+the launching frontend’s stderr. A healthy connection logs two lines:
 
 ```
 [INFO] Aseprite connected from ('127.0.0.1', 57859)

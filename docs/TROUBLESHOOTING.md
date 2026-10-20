@@ -14,13 +14,13 @@ In order of likelihood:
 2. **The plugin is not installed or not enabled.** Check
    **Edit → Preferences → Extensions** for *Aseprite MCP Bridge*.
 3. **The two ends are on different ports.** Nothing negotiates the port, so a
-   server on 9876 and a plugin on 9877 will never meet, and neither logs an
+   bridge on 9876 and a plugin on 9877 will never meet, and neither logs an
    error about it. Check **View → Console** in Aseprite for the
-   `[MCP] Connecting to ws://127.0.0.1:<port> …` line and compare it with the
+   `[MCP] Connecting to ws://127.0.0.1:<port> ...` line and compare it with the
    server's `Starting WebSocket server on ws://127.0.0.1:<port>`. See
    [Setting the port](#setting-the-port) — remember the plugin only sees the
    variable if it was set **before** Aseprite started.
-4. **The plugin failed to load.** Same console: `[MCP] Connecting to …` with no
+4. **The plugin failed to load.** Same console: `[MCP] Connecting to ...` with no
    `[MCP] Connected.` means it could not reach the server at all.
 
 ### "Timeout: Aseprite did not respond within 10s"
@@ -28,7 +28,7 @@ In order of likelihood:
 This is what a stale bridge looks like: the socket is connected but nothing
 comes back, so every call waits the full ten seconds.
 
-The reliable tell is in the server log — a connection with no `Handshake:` line
+The reliable tell is in the bridge log — a connection with no `Handshake:` line
 after it. A healthy reconnection logs both:
 
 ```
@@ -43,12 +43,58 @@ A server restart on its own is no longer a cause. Aseprite's WebSocket
 reconnects within a second or two and re-sends its handshake, so the bridge
 recovers without touching the editor.
 
-### `OSError: [Errno 10048] / [Errno 98] address already in use`
+### "Port <port> is occupied by an incompatible bridge; stop old servers before upgrading"
 
-The port is taken, almost always by another copy of this server that is still
-running — a second MCP client, or an instance you started by hand. Only one can
-hold it. Either stop the other one, or move this bridge to a free port with
-`ASEPRITE_MCP_PORT`, setting it for **both** the server and Aseprite.
+Shared-session frontends automatically reuse a compatible bridge. An old server
+cannot handle frontend connections; stop existing server processes once when
+upgrading, then start a new session. The plugin reconnects automatically.
+
+### "Port <port> is occupied by an incompatible service; stop it or change ASEPRITE_MCP_PORT"
+
+Another service owns the configured port or does not complete the WebSocket
+handshake. Stop that service or change the port for both the server and editor.
+The frontend never terminates another process to claim its port.
+
+### "Shared bridge on port <port> did not start within 5s; see bridge log"
+
+The child process could not start listening in time. The launching frontend
+prints `Shared bridge log: <path>` to stderr. That temporary log file holds
+bridge startup, plugin handshake, command, and failure details. Existing sessions
+that reuse a bridge do not create another log. Logs remain available after the
+bridge exits and may be removed when no longer needed.
+
+### "Cannot connect to shared bridge on port <port>: <reason>"
+
+The operating system refused local communication for a reason other than an
+unused port. Check the supplied reason, local firewall, and process permissions.
+
+### "Shared bridge disconnected before responding; command outcome unknown"
+
+The frontend lost contact with the bridge before receiving a result. The editor
+may already have executed the command. Inspect its state before retrying a
+mutation. The next call automatically reconnects or starts a replacement bridge;
+the interrupted call is never replayed automatically.
+
+### "Aseprite disconnected before responding" / "Error: Aseprite disconnected before responding"
+
+The editor connection closed during a call. The editor may have executed the
+command before disconnecting. Let the plugin reconnect and inspect editor state
+before retrying. Existing MCP sessions remain usable.
+
+### "Error: Internal bridge failure; see bridge log"
+
+An unexpected server exception occurred. Inspect the bridge log for its traceback.
+The call returns an MCP error, and the bridge continues serving other calls.
+
+### Shared session lifetime
+
+Closing the first session does not disconnect other sessions. After the last
+frontend leaves, the bridge exits after 60 seconds, waiting for running calls to
+finish. A connected plugin alone does not keep it alive. A later session starts
+a new bridge and the plugin reconnects.
+
+All sessions share active editor state. Individual calls serialize, but sequences
+can interleave; coordinate sprite/frame changes between sessions when needed.
 
 ### Only one Aseprite at a time
 

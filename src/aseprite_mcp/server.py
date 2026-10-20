@@ -1,13 +1,8 @@
 """
 aseprite_mcp.server
 ===================
-Single asyncio process that runs:
-  - A WebSocket server on ws://127.0.0.1:<port> (for the Aseprite Lua plugin),
-    where <port> comes from ASEPRITE_MCP_PORT and defaults to 9876
-  - An MCP stdio server (for Claude / Claude Code)
-
-Both share the same event loop so tool calls can reach Aseprite over the
-WebSocket and await the response before returning to the MCP caller.
+Tool registry and editor dispatch, hosted by the shared background bridge.
+Each MCP stdio frontend relays calls to that bridge (see transport.py).
 """
 
 from __future__ import annotations
@@ -23,11 +18,10 @@ import uuid
 from collections.abc import Mapping
 from typing import Any
 
-import mcp.server.stdio
 import mcp.types as types
 import websockets
 from mcp.server import Server
-from websockets.asyncio.server import ServerConnection, serve
+from websockets.asyncio.server import ServerConnection
 
 # ---------------------------------------------------------------------------
 # Global state
@@ -758,7 +752,8 @@ async def _dispatch(tool: str, params: dict[str, Any]) -> types.CallToolResult:
     """Send a command to Aseprite, await the response, return the tool result."""
     global aseprite_ws
 
-    if aseprite_ws is None:
+    websocket = aseprite_ws
+    if websocket is None:
         return _error("Aseprite not connected — open Aseprite and load the plugin")
 
     command_id = str(uuid.uuid4())
@@ -768,7 +763,7 @@ async def _dispatch(tool: str, params: dict[str, Any]) -> types.CallToolResult:
     pending[command_id] = future
 
     try:
-        await aseprite_ws.send(message)
+        await websocket.send(message)
         log.info("Sent command %s: %s", command_id, tool)
 
         response = await asyncio.wait_for(future, timeout=TOOL_TIMEOUT)
@@ -777,7 +772,8 @@ async def _dispatch(tool: str, params: dict[str, Any]) -> types.CallToolResult:
         return _error(f"Timeout: Aseprite did not respond within {TOOL_TIMEOUT}s")
     except websockets.exceptions.ConnectionClosed:
         pending.pop(command_id, None)
-        aseprite_ws = None
+        if aseprite_ws is websocket:
+            aseprite_ws = None
         return _error("Aseprite disconnected before responding")
     finally:
         pending.pop(command_id, None)
@@ -843,11 +839,11 @@ async def ws_handler(websocket: ServerConnection) -> None:
     except websockets.exceptions.ConnectionClosed as exc:
         log.info("Aseprite disconnected: %s", exc)
     finally:
-        aseprite_ws = None
-        # Cancel any futures that are still waiting.
-        for fut in list(pending.values()):
-            if not fut.done():
-                fut.cancel()
+        if aseprite_ws is websocket:
+            aseprite_ws = None
+            for fut in list(pending.values()):
+                if not fut.done():
+                    fut.set_result({"ok": False, "error": "Aseprite disconnected before responding"})
         log.info("Aseprite connection cleaned up")
 
 
@@ -856,18 +852,9 @@ async def ws_handler(websocket: ServerConnection) -> None:
 # ---------------------------------------------------------------------------
 
 async def main(port: int | None = None) -> None:
-    if port is None:
-        port = resolve_port()
+    from .transport import frontend_main
 
-    log.info("Starting WebSocket server on ws://127.0.0.1:%d", port)
-    async with serve(ws_handler, "127.0.0.1", port):
-        log.info("WebSocket server ready. Starting MCP stdio transport…")
-        async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
-            await mcp_server.run(
-                read_stream,
-                write_stream,
-                mcp_server.create_initialization_options(),
-            )
+    await frontend_main(resolve_port() if port is None else port)
 
 
 if __name__ == "__main__":

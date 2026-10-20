@@ -18,8 +18,13 @@ tests/lua/            Lua suite for the plugin's pure functions
 ```bash
 git clone https://github.com/giangdvdotdev/aseprite-mcp.git
 cd aseprite-mcp
-pip install -e ".[dev]"
+make install
 ```
+
+`make install` needs [Poetry](https://python-poetry.org/) 2.x. It creates a
+project-local `.venv` and installs the package with its dev extras there;
+nothing touches your global Python. Every other Python target runs inside that
+venv via `poetry run`. Run `make` on its own to list the targets.
 
 For the Lua tests you also need a **Lua 5.4** interpreter on `PATH`. No
 LuaRocks, no `busted` — the runner is plain Lua on purpose.
@@ -35,12 +40,13 @@ LuaRocks, no `busted` — the runner is plain Lua on purpose.
 Both suites are fast and neither needs Aseprite running.
 
 ```bash
-pytest                    # server: dispatch, timeouts, registry, drift
-lua tests/lua/run.lua     # plugin: JSON decoding, pixel parsing
+make test        # both suites
+make test-py     # server: dispatch, timeouts, registry, drift
+make test-lua    # plugin: JSON decoding, pixel parsing
 ```
 
-Both must pass before a pull request. `lua tests/lua/run.lua` exits non-zero on
-failure, so it drops straight into CI.
+Both must pass before a pull request. Each exits non-zero on failure, so they
+drop straight into CI.
 
 ### What the tests cover
 
@@ -85,7 +91,7 @@ that copy is generated, and hand-editing it is how the two drifted apart in the
 first place. To try a change in the real editor:
 
 ```bash
-python scripts/install_plugin.py
+make install-plugin
 ```
 
 Then restart Aseprite; extensions load only at startup.
@@ -116,10 +122,11 @@ line beneath them.
 
 ## Versions
 
-Three version strings have to agree, and nothing enforces it automatically yet:
+Three version strings have to agree:
 
 - `version` in `pyproject.toml`
 - `version` in `plugin/package.json`
 - `PLUGIN_VER` in `plugin/main.lua`
 
-Bump them together.
+Bump them together, then run `make check-versions` — it compares all three and
+fails on a mismatch.
