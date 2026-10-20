@@ -632,7 +632,7 @@ being executed, mark each checkbox `[x]` as its task lands.
 ## Debugging
 
 **Aseprite side:** **View → Console**. The plugin prints
-`[MCP] Connecting to ws://127.0.0.1:<port> …`, then `[MCP] Connected.`, then
+`[MCP] Connecting to ws://127.0.0.1:<port> ...`, then `[MCP] Connected.`, then
 `[MCP] RX: <first 200 chars>` per command.
 
 **Server side:** the temporary file reported as `Shared bridge log: <path>` on

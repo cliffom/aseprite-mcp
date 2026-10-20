@@ -19,7 +19,7 @@ local function resolve_port()
   local port = tonumber(raw)
   if not port or port ~= math.floor(port) or port < 1 or port > 65535 then
     print("[MCP] ASEPRITE_MCP_PORT is not a port number: " .. tostring(raw)
-          .. " — falling back to " .. DEFAULT_PORT)
+          .. " - falling back to " .. DEFAULT_PORT)
     return DEFAULT_PORT
   end
 
@@ -1458,7 +1458,9 @@ end
 -- Entry point
 -- ─────────────────────────────────────────────
 local function connect()
-  print("[MCP] Connecting to " .. WS_URL .. " …")
+  -- Keep status punctuation in ASCII so the editor's console does not need
+  -- fallback fonts for our separators when laying out consecutive lines.
+  print("[MCP] Connecting to " .. WS_URL .. " ...")
 
   ws = WebSocket{
     url = WS_URL,
@@ -1488,7 +1490,9 @@ local function connect()
         -- own and fires OPEN again on the same handle; clearing it here left
         -- send() a permanent no-op, so the reconnection completed but no
         -- handshake or command reply was ever transmitted.
-        print("[MCP] Disconnected" .. (err and (" — " .. tostring(err)) or "."))
+        -- Aseprite supplies an empty string when there is no error; unlike
+        -- nil, that is truthy in Lua and must not add an empty error suffix.
+        print("[MCP] Disconnected" .. (err and err ~= "" and (": " .. tostring(err)) or "."))
       end
     end,
   }
