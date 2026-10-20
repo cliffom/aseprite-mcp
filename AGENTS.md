@@ -581,28 +581,38 @@ being executed, mark each checkbox `[x]` as its task lands.
 
 ## Git flow
 
-1. **`main` is the only long-lived branch.** Always in a runnable state (green
-   `make test`). No direct pushes — every change goes through a PR.
-2. **Branch names:** `<prefix>/<scope>/<slug>` with `<prefix>` one of `feat/`,
+1. **Two long-lived branches: `main` and `development`.** `main` is what has
+   been released; `development` is where work lands between releases. Both are
+   always in a runnable state (green `make test`). No direct pushes to either —
+   every change goes through a PR.
+2. **Topic branches are cut from `development` and PR'd back into it.**
+   `git switch development && git pull && git switch -c <branch>`. Never open a
+   topic PR against `main`.
+3. **Branch names:** `<prefix>/<scope>/<slug>` with `<prefix>` one of `feat/`,
    `fix/`, `refactor/`, `docs/`, `test/`, `chore/`. `<scope>` matches the part
    of the tree the change lands in — `server` (`src/aseprite_mcp/`), `plugin`
    (`plugin/`), `scripts`, `docs`, `tests`, or `sugar` where applicable.
    Examples: `feat/plugin/add-flood-fill`, `fix/server/port-resolve`,
    `docs/docs/troubleshooting-reconnect`.
-3. **Commit and PR title convention:** Conventional Commits with scope —
+4. **Commit and PR title convention:** Conventional Commits with scope —
    `<type>(<scope>): <subject>`. Types match branch prefixes (`feat`, `fix`,
    `refactor`, `docs`, `test`, `chore`). Scope is `server`, `plugin`, `scripts`,
    `docs`, or `tests`. A change spanning both halves of a tool (see "Adding a
    tool means editing **both** files" above) uses both, comma-joined:
    `feat(server,plugin): add flood_fill tool`.
-4. **Update a topic branch against `main` by rebase, never merge.**
-   `git rebase main`; push with `--force-with-lease` (never plain `--force`).
-   Keeps topic branches linear and PR diffs clean.
-5. **Squash-merge only** via GitHub PR. The squash commit follows the
+5. **Update a topic branch against `development` by rebase, never merge.**
+   `git rebase development`; push with `--force-with-lease` (never plain
+   `--force`). Keeps topic branches linear and PR diffs clean.
+6. **Topic PRs squash-merge into `development`.** The squash commit follows the
    Conventional Commit format. Delete the branch after merge.
-6. **Before opening a PR that adds or changes a tool,** `make test` must
+7. **Releases are a PR from `development` into `main`, merged with a merge
+   commit — not a squash.** Squashing would give `main` a commit `development`
+   does not have, and every later release PR would conflict over changes both
+   branches already contain. Never rebase or force-push either long-lived
+   branch.
+8. **Before opening a PR that adds or changes a tool,** `make test` must
    pass locally, and if the change bumps a version, `make check-versions` must
-   too.
+   too. A release PR into `main` must pass both regardless.
 
 ## Debugging
 
