@@ -2,7 +2,7 @@
 -- WebSocket client bridge: connects Aseprite to the Python MCP server.
 -- Protocol: receives JSON commands, dispatches to handler, sends JSON responses.
 
-local PLUGIN_VER   = "0.6.0"
+local PLUGIN_VER   = "0.7.0"
 local DEFAULT_PORT = 9876
 
 -- Both ends of the bridge read ASEPRITE_MCP_PORT and must agree on it; nothing
