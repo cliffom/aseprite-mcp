@@ -4,13 +4,14 @@ Guidance for coding agents (Codex, Claude Code, Cursor, etc.) and humans
 working in this repo.
 
 MCP server that drives a live Aseprite instance over a local WebSocket bridge.
-Two processes, one socket between them.
+Per-session stdio frontends share one detached background bridge and editor socket.
 
 ## Architecture
 
 ```
 Makefile                      → dev tasks; `make` lists them, Python runs in Poetry's ./.venv
-src/aseprite_mcp/server.py    → WebSocket server + MCP stdio server on one event loop
+src/aseprite_mcp/server.py    → tool registry, editor dispatch, canvas files
+src/aseprite_mcp/transport.py → stdio frontends, shared bridge, discovery and lifecycle
 src/aseprite_mcp/__main__.py  → console script; resolves the port before asyncio.run
 plugin/main.lua               → the Aseprite-side WebSocket client (only source of truth)
 plugin/package.json           → extension manifest Aseprite reads
@@ -25,9 +26,10 @@ sugar/                        → spec-driven change dirs (see "Spec-driven work
 Data flow for one tool call:
 
 ```
-client ──MCP stdio──▶ server.py ──JSON/ws──▶ main.lua ──▶ app.useTool / img:drawPixel
-                          ▲                      │
-                          └──── {id, ok, result} ┘
+client ──MCP stdio──▶ frontend ──ws /clients──▶ bridge ──JSON/ws /──▶ main.lua
+                                              server.py               │
+                                                  ▲                   │
+                                                  └── {id,ok,result} ─┘
 ```
 
 `server.py` holds at most one Aseprite connection (`aseprite_ws`) and a
@@ -467,7 +469,19 @@ unexpected faults through it.
 ### One Aseprite at a time
 
 A second connection is closed with code 1008. The first keeps the bridge.
-On disconnect, every pending future is cancelled so no caller hangs.
+On editor disconnect, pending calls resolve as errors so no caller hangs.
+
+Multiple stdio sessions share the bridge automatically. `transport.py` owns
+discovery, detached startup, a versioned frontend protocol, and a fair lock
+serializing calls. Editor timeouts begin after acquiring that lock. Sessions
+share active editor state; multi-call sequences are not atomic.
+
+The bridge outlives its first frontend and exits after 60 seconds without
+frontends, once dispatched calls finish. Cancel only queued work on frontend
+disconnect; dispatched calls must finish, especially canvas-file cleanup. Never
+replay a call after an uncertain disconnect. The plugin endpoint and wire
+protocol remain unchanged. Bump `BRIDGE_PROTOCOL` when frontend wire or tool
+semantics change incompatibly.
 
 ### Dependency bounds are deliberate
 
@@ -505,8 +519,9 @@ Restart Aseprite after either — extensions load only at startup.
 make run                     # or, inside the venv: aseprite-mcp / python -m aseprite_mcp
 ```
 
-It logs to stderr and then waits on stdin. Started by hand it exits as soon as
-stdin closes — that is correct; it speaks MCP over stdio and belongs under an
+The frontend logs to stderr and then waits on stdin. The launching frontend
+reports a temporary log path for the background bridge, whose logs go there.
+Started by hand the frontend exits as soon as stdin closes — that is correct; it speaks MCP over stdio and belongs under an
 MCP client.
 
 ```bash
@@ -620,7 +635,8 @@ being executed, mark each checkbox `[x]` as its task lands.
 `[MCP] Connecting to ws://127.0.0.1:<port> …`, then `[MCP] Connected.`, then
 `[MCP] RX: <first 200 chars>` per command.
 
-**Server side:** stderr. A healthy connection logs two lines:
+**Server side:** the temporary file reported as `Shared bridge log: <path>` on
+the launching frontend’s stderr. A healthy connection logs two lines:
 
 ```
 [INFO] Aseprite connected from ('127.0.0.1', 57859)

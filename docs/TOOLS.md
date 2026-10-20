@@ -12,17 +12,24 @@ For what to do when one of these returns an error, see
 ## How it works
 
 ```
-Claude  ──MCP over stdio──▶  aseprite-mcp  ──JSON over ws://127.0.0.1:9876──▶  Aseprite plugin
-                                        (port configurable — TROUBLESHOOTING.md#setting-the-port)
-                                                                                     │
-                                                                          app.useTool / drawPixel
-                                                                                     ▼
-                                                                                  canvas
+MCP sessions ──stdio──▶ frontends ──/clients──▶ shared bridge ──/──▶ Aseprite plugin
+                                             127.0.0.1:9876          │
+                                                               canvas
 ```
 
-The server holds one WebSocket connection to Aseprite and matches each reply to
-its request by UUID, so tool calls return the editor's actual result rather than
-a hopeful acknowledgement.
+Each session has its own stdio frontend. One background bridge holds the editor
+connection and matches replies by UUID, returning actual editor results. The
+port is configurable; see [Setting the port](TROUBLESHOOTING.md#setting-the-port).
+
+Calls from every session execute one at a time. The ten-second editor timeout
+starts when a call is dispatched, so queued calls can wait longer. Sessions
+share active sprite, layer, frame, selection, and undo history; sequences of
+calls can interleave. There is no session-specific editor state.
+
+Disconnecting a session removes its queued calls. Already-dispatched calls
+finish, including canvas-file cleanup, even if their caller has left. Bridge
+failures return errors and reconnect for subsequent calls, without replaying
+uncertain mutations.
 
 ## The tools
 

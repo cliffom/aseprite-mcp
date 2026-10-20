@@ -158,8 +158,10 @@ async def test_unmatched_uuid_dropped():
     # Run the handler; it should finish without error.
     await srv.ws_handler(fake_ws)  # type: ignore[arg-type]
 
-    # The sentinel future was cancelled by cleanup (aseprite_ws became None).
-    assert sentinel_fut.cancelled()
+    # Cleanup resolves pending calls as failures, rather than cancelling MCP requests.
+    assert sentinel_fut.result() == {
+        "ok": False, "error": "Aseprite disconnected before responding"
+    }
     # The unknown id never created a new entry.
     assert sentinel_id not in srv.pending or srv.pending.get(sentinel_id) is sentinel_fut
 
